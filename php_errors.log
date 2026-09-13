@@ -1,0 +1,21 @@
+[26-Aug-2026 14:41:51 UTC] PHP Fatal error:  Uncaught RuntimeException: Composer detected issues in your platform: Your Composer dependencies require a PHP version ">= 8.4.1". You are running 8.3.2. in C:\Users\theo0\OneDrive\Bureau\language-learning-assistant-v2\vendor\composer\platform_check.php:22
+Stack trace:
+#0 C:\Users\theo0\OneDrive\Bureau\language-learning-assistant-v2\vendor\composer\autoload_real.php(25): require()
+#1 C:\Users\theo0\OneDrive\Bureau\language-learning-assistant-v2\vendor\autoload.php(22): ComposerAutoloaderInitd0a5f283f588eb7a0f25e28797e62117::getLoader()
+#2 C:\Users\theo0\OneDrive\Bureau\language-learning-assistant-v2\artisan(10): require('C:\\Users\\theo0\\...')
+#3 {main}
+  thrown in C:\Users\theo0\OneDrive\Bureau\language-learning-assistant-v2\vendor\composer\platform_check.php on line 22
+[26-Aug-2026 15:07:28 UTC] PHP Fatal error:  Uncaught RuntimeException: Composer detected issues in your platform: Your Composer dependencies require a PHP version ">= 8.4.1". You are running 8.3.2. in C:\Users\theo0\OneDrive\Bureau\language-learning-assistant-v2\vendor\composer\platform_check.php:22
+Stack trace:
+#0 C:\Users\theo0\OneDrive\Bureau\language-learning-assistant-v2\vendor\composer\autoload_real.php(25): require()
+#1 C:\Users\theo0\OneDrive\Bureau\language-learning-assistant-v2\vendor\autoload.php(22): ComposerAutoloaderInitd0a5f283f588eb7a0f25e28797e62117::getLoader()
+#2 C:\Users\theo0\OneDrive\Bureau\language-learning-assistant-v2\artisan(10): require('C:\\Users\\theo0\\...')
+#3 {main}
+  thrown in C:\Users\theo0\OneDrive\Bureau\language-learning-assistant-v2\vendor\composer\platform_check.php on line 22
+[26-Aug-2026 15:08:18 UTC] PHP Fatal error:  Uncaught RuntimeException: Composer detected issues in your platform: Your Composer dependencies require a PHP version ">= 8.4.1". You are running 8.3.2. in C:\Users\theo0\OneDrive\Bureau\language-learning-assistant-v2\vendor\composer\platform_check.php:22
+Stack trace:
+#0 C:\Users\theo0\OneDrive\Bureau\language-learning-assistant-v2\vendor\composer\autoload_real.php(25): require()
+#1 C:\Users\theo0\OneDrive\Bureau\language-learning-assistant-v2\vendor\autoload.php(22): ComposerAutoloaderInitd0a5f283f588eb7a0f25e28797e62117::getLoader()
+#2 C:\Users\theo0\OneDrive\Bureau\language-learning-assistant-v2\artisan(10): require('C:\\Users\\theo0\\...')
+#3 {main}
+  thrown in C:\Users\theo0\OneDrive\Bureau\language-learning-assistant-v2\vendor\composer\platform_check.php on line 22
