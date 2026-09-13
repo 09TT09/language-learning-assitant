@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
@@ -16,6 +15,7 @@ class AuthController extends Controller
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required'],
+            'device_name' => ['required', 'string'],
         ]);
 
         $user = User::where('email', $credentials['email'])->first();
@@ -26,21 +26,19 @@ class AuthController extends Controller
             ]);
         }
 
-        Auth::login($user);
-
-        $request->session()->regenerate();
+        $token = $user
+            ->createToken($credentials['device_name'])
+            ->plainTextToken;
 
         return response()->json([
             'user' => $user,
+            'token' => $token,
         ]);
     }
 
     public function logout(Request $request)
     {
-        Auth::logout();
-
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        $request->user()->currentAccessToken()->delete();
 
         return response()->json([
             'message' => 'Logged out successfully',

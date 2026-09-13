@@ -69,11 +69,14 @@ class SpanishTutorService
     {
         $messages = $conversation
             ->messages()
-            ->orderBy('created_at')
-            ->get();
-
+            ->latest('created_at')
+            ->take(10)
+            ->get()
+            ->reverse()
+            ->values();
+    
         $latestMessage = $messages->last();
-
+    
         $history = $messages
             ->map(function (Message $message) {
                 return match ($message->role->value) {
@@ -82,71 +85,21 @@ class SpanishTutorService
                 };
             })
             ->implode("\n");
-
+    
         return <<<PROMPT
-Continue the following Spanish learning conversation.
+            Continue this Spanish learning conversation.
 
-CONVERSATION CONTEXT
+            Learner level: {$conversation->level}
 
-Language: {$conversation->language}
+            Conversation:
+            {$history}
 
-Learner level: {$conversation->level}
+            Latest learner message:
+            "{$latestMessage->content}"
 
-Conversation history:
+            Analyze the latest learner message for genuine mistakes and provide the complete corrected sentence.
 
-{$history}
-
-
-LATEST LEARNER MESSAGE TO ANALYZE
-
-"{$latestMessage->content}"
-
-
-ANALYSIS INSTRUCTIONS
-
-Analyze ONLY the latest learner message.
-
-Identify ALL genuine Spanish mistakes in the latest message.
-
-Do not stop after finding the first mistake.
-
-Check the complete message for:
-
-- spelling
-- grammar
-- verb conjugation
-- vocabulary
-- gender and number agreement
-- articles
-- prepositions
-- word order
-- punctuation when relevant
-
-For EVERY genuine mistake, create one item in the mistakes array.
-
-Then create corrected_sentence containing the COMPLETE corrected
-version of the latest learner message.
-
-corrected_sentence MUST incorporate ALL necessary corrections.
-
-The mistakes array and corrected_sentence MUST be consistent.
-
-Do not report valid alternative expressions as mistakes.
-
-Do not report stylistic preferences as mistakes.
-
-Do not introduce unnecessary changes.
-
-Do not analyze previous learner messages.
-
-Do not analyze tutor messages.
-
-If the latest learner message contains no genuine mistakes,
-return an empty mistakes array and keep corrected_sentence identical
-to the original learner message.
-
-Respond naturally to the learner and continue the conversation.
-
-PROMPT;
+            Then respond naturally in Spanish and continue the conversation.
+        PROMPT;
     }
 }
