@@ -97,4 +97,79 @@ class ConversationStoreTest extends TestCase
 
         $this->assertDatabaseCount('conversations', 0);
     }
+
+    public function test_it_accepts_all_supported_levels(): void
+    {
+        $user = User::factory()->create();
+    
+        foreach (['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as $level) {
+            $response = $this->actingAs($user)
+                ->postJson('/api/conversations', [
+                    'language' => 'es',
+                    'level' => $level,
+                ]);
+    
+            $response
+                ->assertCreated()
+                ->assertJsonPath('level', $level);
+        }
+    
+        $this->assertSame(6, Conversation::query()->count());
+    }
+
+    public function test_it_rejects_an_empty_language(): void
+    {
+        $user = User::factory()->create();
+    
+        $this->actingAs($user)
+            ->postJson('/api/conversations', [
+                'language' => '',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['language']);
+    
+        $this->assertDatabaseCount('conversations', 0);
+    }
+
+    public function test_it_rejects_an_empty_level(): void
+    {
+        $user = User::factory()->create();
+    
+        $this->actingAs($user)
+            ->postJson('/api/conversations', [
+                'level' => '',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['level']);
+    
+        $this->assertDatabaseCount('conversations', 0);
+    }
+
+    public function test_it_rejects_a_non_string_language(): void
+    {
+        $user = User::factory()->create();
+    
+        $this->actingAs($user)
+            ->postJson('/api/conversations', [
+                'language' => 123,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['language']);
+    
+        $this->assertDatabaseCount('conversations', 0);
+    }
+
+    public function test_it_rejects_a_non_string_level(): void
+    {
+        $user = User::factory()->create();
+    
+        $this->actingAs($user)
+            ->postJson('/api/conversations', [
+                'level' => 123,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['level']);
+    
+        $this->assertDatabaseCount('conversations', 0);
+    }
 }

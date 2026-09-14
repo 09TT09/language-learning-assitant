@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Services\SpanishTutorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use RuntimeException;
 
 class ConversationMessageController extends Controller
 {
@@ -25,11 +26,17 @@ class ConversationMessageController extends Controller
             ],
         ]);
 
-        $result = $tutor->sendMessage(
-            $conversation,
-            $validated['content']
-        );
+        try {
+            $result = $tutor->sendMessage(
+                $conversation,
+                $validated['content']
+            );
 
-        return response()->json($result);
+            return response()->json($result);
+        } catch (RuntimeException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 503);
+        }
     }
 }

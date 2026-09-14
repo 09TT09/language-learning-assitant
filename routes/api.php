@@ -33,8 +33,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post(
         '/conversations/{conversation}/messages',
         [ConversationMessageController::class, 'store']
-    );
+    )->middleware('throttle:ai-chat');
 
+    Route::delete(
+        '/conversations/{conversation}',
+        [ConversationController::class, 'destroy']
+    );
+    
     Route::get(
         '/mistakes',
         [MistakeController::class, 'index']

@@ -12,6 +12,34 @@ const mistakeTypes = [
     { label: 'Word order', value: 'word_order' },
 ];
 
+const mistakeSubtypes: Record<
+    string,
+    { label: string; value: string }[]
+> = {
+    grammar: [
+        { label: 'All', value: '' },
+        { label: 'Verb conjugation', value: 'verb_conjugation' },
+        { label: 'Verb tense', value: 'verb_tense' },
+        { label: 'Preposition', value: 'preposition' },
+        { label: 'Article', value: 'article' },
+        { label: 'Gender agreement', value: 'gender_agreement' },
+        { label: 'Number agreement', value: 'number_agreement' },
+        { label: 'Pronoun', value: 'pronoun' },
+    ],
+
+    vocabulary: [
+        { label: 'All', value: '' },
+        { label: 'Wrong word', value: 'wrong_word' },
+        { label: 'False friend', value: 'false_friend' },
+    ],
+
+    spelling: [
+        { label: 'All', value: '' },
+        { label: 'Typo', value: 'typo' },
+        { label: 'Accent', value: 'accent' },
+    ],
+};
+
 export default function Mistakes() {
     const [mistakes, setMistakes] = useState<Mistake[]>([]);
     const [selectedType, setSelectedType] = useState('');
@@ -20,6 +48,7 @@ export default function Mistakes() {
     const [selectedSeverity, setSelectedSeverity] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [lastPage, setLastPage] = useState(1);
+    const [selectedSubtype, setSelectedSubtype] = useState('');
 
     useEffect(() => {
         const fetchMistakes = async () => {
@@ -29,6 +58,7 @@ export default function Mistakes() {
     
                 const result = await getMistakes({
                     type: selectedType || undefined,
+                    subtype: selectedSubtype || undefined,
                     severity: selectedSeverity || undefined,
                     page: currentPage,
                 });
@@ -47,11 +77,15 @@ export default function Mistakes() {
         };
     
         fetchMistakes();
-    }, [selectedType, selectedSeverity, currentPage]);
+    }, [selectedType, selectedSubtype, selectedSeverity, currentPage]);
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [selectedType, selectedSeverity]);
+    }, [selectedType, selectedSubtype, selectedSeverity]);
+
+    useEffect(() => {
+        setSelectedSubtype('');
+    }, [selectedType]);
 
     return (
         <div className="flex h-full flex-1 flex-col gap-6 rounded-xl p-6">
@@ -83,6 +117,31 @@ export default function Mistakes() {
                 ))}
             </div>
 
+            {selectedType && mistakeSubtypes[selectedType] && (
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium">
+                        Subtype:
+                    </span>
+
+                    {mistakeSubtypes[selectedType].map((subtype) => (
+                        <button
+                            key={subtype.value}
+                            type="button"
+                            onClick={() =>
+                                setSelectedSubtype(subtype.value)
+                            }
+                            className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                                selectedSubtype === subtype.value
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'bg-muted hover:bg-muted/80'
+                            }`}
+                        >
+                            {subtype.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+
             <div className="flex items-center gap-3">
                 <label
                     htmlFor="severity"
@@ -107,8 +166,39 @@ export default function Mistakes() {
             </div>
 
             {loading && (
-                <div className="text-muted-foreground">
-                    Loading mistakes...
+                <div className="space-y-4">
+                    {[1, 2, 3].map((item) => (
+                        <div
+                            key={item}
+                            className="animate-pulse rounded-lg border p-5"
+                        >
+                            {/* Metadata */}
+                            <div className="flex gap-2">
+                                <div className="h-6 w-20 rounded-md bg-muted" />
+                                <div className="h-6 w-28 rounded-md bg-muted" />
+                                <div className="h-6 w-16 rounded-md bg-muted" />
+                            </div>
+
+                            {/* Original */}
+                            <div className="mt-5">
+                                <div className="h-4 w-16 rounded bg-muted" />
+                                <div className="mt-2 h-5 w-3/4 rounded bg-muted" />
+                            </div>
+
+                            {/* Correction */}
+                            <div className="mt-4">
+                                <div className="h-4 w-16 rounded bg-muted" />
+                                <div className="mt-2 h-5 w-2/3 rounded bg-muted" />
+                            </div>
+
+                            {/* Explanation */}
+                            <div className="mt-4">
+                                <div className="h-4 w-24 rounded bg-muted" />
+                                <div className="mt-2 h-4 w-full rounded bg-muted" />
+                                <div className="mt-2 h-4 w-4/5 rounded bg-muted" />
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
 
@@ -138,40 +228,55 @@ export default function Mistakes() {
                             key={mistake.id}
                             className="rounded-lg border p-5"
                         >
+                            {/* Metadata */}
                             <div className="flex flex-wrap items-center gap-2">
                                 <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium capitalize">
-                                    {mistake.type}
+                                    {mistake.type.replaceAll('_', ' ')}
                                 </span>
 
-                                <span className="rounded-md bg-muted px-2 py-1 text-xs capitalize">
-                                    {mistake.subtype.replaceAll(
-                                        '_',
-                                        ' ',
-                                    )}
-                                </span>
+                                {mistake.subtype && (
+                                    <span className="rounded-md bg-muted px-2 py-1 text-xs capitalize">
+                                        {mistake.subtype.replaceAll('_', ' ')}
+                                    </span>
+                                )}
 
                                 <span className="rounded-md bg-muted px-2 py-1 text-xs capitalize">
                                     {mistake.severity}
                                 </span>
                             </div>
 
-                            <div className="mt-4 text-lg">
-                                <span className="text-destructive line-through">
+                            {/* Original */}
+                            <div className="mt-5">
+                                <p className="text-sm font-medium text-muted-foreground">
+                                    You said
+                                </p>
+
+                                <p className="mt-1 text-base text-destructive line-through">
                                     {mistake.original_text}
-                                </span>
-
-                                <span className="mx-2">
-                                    →
-                                </span>
-
-                                <span className="font-medium">
-                                    {mistake.corrected_text}
-                                </span>
+                                </p>
                             </div>
 
-                            <p className="mt-3 text-sm text-muted-foreground">
-                                {mistake.explanation}
-                            </p>
+                            {/* Correction */}
+                            <div className="mt-4">
+                                <p className="text-sm font-medium text-muted-foreground">
+                                    Correct
+                                </p>
+
+                                <p className="mt-1 text-base font-medium">
+                                    {mistake.corrected_text}
+                                </p>
+                            </div>
+
+                            {/* Explanation */}
+                            <div className="mt-4">
+                                <p className="text-sm font-medium text-muted-foreground">
+                                    Explanation
+                                </p>
+
+                                <p className="mt-1 text-sm">
+                                    {mistake.explanation}
+                                </p>
+                            </div>
                         </div>
                     ))}
                 </div>

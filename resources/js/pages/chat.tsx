@@ -8,6 +8,7 @@ import { ChatThread } from '@/components/chat/chat-thread';
 import { Button } from '@/components/ui/button';
 
 import {
+    ApiError,
     createConversation,
     getConversation,
     sendConversationMessage,
@@ -29,7 +30,10 @@ export default function Chat() {
     const [loadingConversation, setLoadingConversation] = useState(false);
     const [sending, setSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
+    const [failedMessage, setFailedMessage] = useState<{
+        id: string;
+        content: string;
+    } | null>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -163,12 +167,69 @@ export default function Chat() {
                 },
             ]);
         } catch (caught) {
-            setMessages((current) =>
-                current.filter(
-                    (message) => message.id !== userMessage.id,
-                ),
-            );
+            if (caught instanceof ApiError && caught.status === 429) {
+                setError(
+                    'You have sent too many messages. Please wait a moment before trying again.',
+                );
+            } else if (caught instanceof ApiError && caught.status === 503) {
+                setFailedMessage({
+                    id: userMessage.id.toString(),
+                    content,
+                });
+        
+                setError(caught.message);
+            } else {
+                setMessages((current) =>
+                    current.filter(
+                        (message) => message.id !== userMessage.id,
+                    ),
+                );
+        
+                setError(
+                    caught instanceof Error
+                        ? caught.message
+                        : 'Could not send your message.',
+                );
+            }
+        } finally {
+            setSending(false);
+        }
+    }
 
+    async function retryMessage() {
+        if (!conversation || !failedMessage) {
+            return;
+        }
+    
+        setSending(true);
+        setError(null);
+    
+        try {
+            const result = await sendConversationMessage(
+                conversation.id,
+                failedMessage.content,
+            );
+    
+            setMessages((current) => [
+                ...current.map((message) =>
+                    message.id === failedMessage.id
+                        ? {
+                              ...message,
+                              mistakes: result.mistakes,
+                              corrected_sentence:
+                                  result.corrected_sentence,
+                          }
+                        : message,
+                ),
+                {
+                    id: result.message.id,
+                    role: 'assistant',
+                    content: result.message.content,
+                },
+            ]);
+    
+            setFailedMessage(null);
+        } catch (caught) {
             setError(
                 caught instanceof Error
                     ? caught.message
@@ -220,7 +281,21 @@ export default function Chat() {
                         </div>
                     )}
 
-                    {error && <AlertError errors={[error]} />}
+                    {error && (
+                        <div className="space-y-2">
+                            <AlertError errors={[error]} />
+
+                            {failedMessage && (
+                                <Button
+                                    variant="outline"
+                                    onClick={retryMessage}
+                                    disabled={sending}
+                                >
+                                    Retry
+                                </Button>
+                            )}
+                        </div>
+                    )}
 
                     {conversation ? (
                         <>

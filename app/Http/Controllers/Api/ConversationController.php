@@ -59,4 +59,17 @@ class ConversationController extends Controller
 
         return response()->json($conversation);
     }
+
+    public function destroy(
+        Request $request,
+        Conversation $conversation
+    ): JsonResponse {
+        $this->authorize('delete', $conversation);
+    
+        $conversation->delete();
+    
+        return response()->json([
+            'message' => 'Conversation deleted successfully.',
+        ]);
+    }
 }

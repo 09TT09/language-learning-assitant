@@ -89,4 +89,15 @@ class ConversationIndexTest extends TestCase
         $response->assertJsonPath('0.id', $newConversation->id);
         $response->assertJsonPath('1.id', $oldConversation->id);
     }
+
+    public function test_user_with_no_conversations_receives_an_empty_list(): void
+    {
+        $user = User::factory()->create();
+    
+        $this->actingAs($user)
+            ->getJson('/api/conversations')
+            ->assertOk()
+            ->assertJsonCount(0)
+            ->assertExactJson([]);
+    }
 }
