@@ -23,34 +23,39 @@ class SpanishTutorService
                     'role' => 'user',
                     'content' => $content,
                 ]);
-
+    
                 // 2. Ask the AI to generate the tutor response
-                $response = (new SpanishTutor)->prompt(
+                $generateTitle = $conversation->title === null;
+    
+                $response = (new SpanishTutor(
+                    generateTitle: $generateTitle,
+                ))->prompt(
                     $this->buildPrompt($conversation)
                 );
-                // throw new RuntimeException('Test AI failure.');
-                
-                $response = (new SpanishTutor)->prompt(
-                    $this->buildPrompt($conversation)
-                );
-
-                // 3. Get the structured AI response
+    
                 $data = $response->structured;
-
-                // 4. Store the corrected version of the learner's message
+    
+                // 3. Save the title only for a new conversation
+                if ($generateTitle) {
+                    $conversation->update([
+                        'title' => $data['title'],
+                    ]);
+                }
+    
+                // 4. Store the corrected learner message
                 $userMessage->update([
                     'corrected_content' => $data['corrected_sentence'],
                 ]);
-
+    
                 // 5. Store the tutor's response
                 $assistantMessage = $conversation->messages()->create([
                     'role' => 'assistant',
                     'content' => $data['reply'],
                 ]);
-
+    
                 // 6. Store mistakes against the learner's message
                 $mistakes = [];
-
+    
                 foreach ($data['mistakes'] as $mistake) {
                     $mistakes[] = $userMessage->mistakes()->create([
                         'conversation_id' => $conversation->id,
@@ -62,7 +67,7 @@ class SpanishTutorService
                         'severity' => $mistake['severity'],
                     ]);
                 }
-
+    
                 // 7. Return the tutor response
                 return [
                     'message' => $assistantMessage,
@@ -75,7 +80,7 @@ class SpanishTutorService
                 'conversation_id' => $conversation->id,
                 'exception' => $exception,
             ]);
-
+    
             throw new RuntimeException(
                 'The Spanish tutor is temporarily unavailable. Please try again.'
             );
@@ -91,9 +96,9 @@ class SpanishTutorService
             ->get()
             ->reverse()
             ->values();
-
+    
         $latestMessage = $messages->last();
-
+    
         $history = $messages
             ->map(function (Message $message) {
                 return match ($message->role->value) {
@@ -102,23 +107,48 @@ class SpanishTutorService
                 };
             })
             ->implode("\n");
+    
+        $titleInstruction = $conversation->title === null
+            ? <<<TITLE
+                Generate a short title for this conversation based ONLY on the learner's first message.
 
+                The title must:
+                - be derived directly from the learner's first message
+                - preserve the meaning and intent of the original message
+                - be written in Spanish when the message contains understandable Spanish
+                - be 1 to 7 words when possible
+                - be concise and suitable as a sidebar conversation label
+                - NOT invent a topic or information that is not present in the message
+                - NOT mention grammar, corrections, mistakes, or language learning
+                - NOT use information from later messages
+                - NOT reproduce a long sentence verbatim when it can be shortened naturally
+
+                If the first message is very short, such as "Hola", "Buenos días", or "¿Cómo estás?",
+                use the message itself as the title.
+
+                If the first message is unclear, nonsensical, or appears to be random text, such as "sdihsscd",
+                do NOT invent a meaning. Use the original input as the title, shortened only if necessary.
+                TITLE
+            : '';
+    
         return <<<PROMPT
             Continue this Spanish learning conversation.
 
             Learner level: {$conversation->level}
-
+    
             Conversation:
-
+    
             {$history}
-
+    
             Latest learner message:
-
+    
             "{$latestMessage->content}"
-
+    
             Analyze the latest learner message for genuine mistakes and provide the complete corrected sentence.
-
+    
             Then respond naturally in Spanish and continue the conversation.
+    
+            {$titleInstruction}
         PROMPT;
     }
 }

@@ -16,19 +16,15 @@ class MistakeResource extends JsonResource
     {
         return [
             'id' => $this->id,
-
             'type' => $this->type->value,
             'subtype' => $this->subtype->value,
-
             'original_text' => $this->original_text,
             'corrected_text' => $this->corrected_text,
             'explanation' => $this->explanation,
-
             'severity' => $this->severity->value,
-
             'conversation_id' => $this->conversation_id,
             'message_id' => $this->message_id,
-
+            'sentence' => $this->message->content,
             'created_at' => $this->created_at,
         ];
     }

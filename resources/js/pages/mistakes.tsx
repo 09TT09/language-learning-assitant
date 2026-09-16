@@ -87,6 +87,38 @@ export default function Mistakes() {
         setSelectedSubtype('');
     }, [selectedType]);
 
+    const renderSentenceWithMistake = (mistake: Mistake) => {
+        const sentence = mistake.sentence;
+        const originalText = mistake.original_text;
+    
+        const index = sentence
+            .toLocaleLowerCase()
+            .indexOf(originalText.toLocaleLowerCase());
+    
+        if (index === -1) {
+            return sentence;
+        }
+    
+        const before = sentence.slice(0, index);
+        const mistakeText = sentence.slice(
+            index,
+            index + originalText.length,
+        );
+        const after = sentence.slice(
+            index + originalText.length,
+        );
+    
+        return (
+            <>
+                {before}
+                <span className="rounded-sm bg-destructive/15 px-1 text-destructive underline decoration-destructive/50">
+                    {mistakeText}
+                </span>
+                {after}
+            </>
+        );
+    };
+
     return (
         <div className="flex h-full flex-1 flex-col gap-6 rounded-xl p-6">
             <div>
@@ -251,8 +283,8 @@ export default function Mistakes() {
                                     You said
                                 </p>
 
-                                <p className="mt-1 text-base text-destructive line-through">
-                                    {mistake.original_text}
+                                <p className="mt-1 text-base leading-relaxed">
+                                    {renderSentenceWithMistake(mistake)}
                                 </p>
                             </div>
 

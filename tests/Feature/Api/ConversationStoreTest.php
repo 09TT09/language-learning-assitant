@@ -172,4 +172,31 @@ class ConversationStoreTest extends TestCase
     
         $this->assertDatabaseCount('conversations', 0);
     }
+
+    public function test_user_cannot_assign_a_conversation_to_another_user(): void
+    {
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+    
+        $response = $this->actingAs($user)
+            ->postJson('/api/conversations', [
+                'language' => 'es',
+                'level' => 'A1',
+                'user_id' => $otherUser->id,
+            ]);
+    
+        $response
+            ->assertCreated()
+            ->assertJsonPath('user_id', $user->id);
+    
+        $this->assertDatabaseHas('conversations', [
+            'id' => $response->json('id'),
+            'user_id' => $user->id,
+        ]);
+    
+        $this->assertDatabaseMissing('conversations', [
+            'id' => $response->json('id'),
+            'user_id' => $otherUser->id,
+        ]);
+    }
 }

@@ -145,11 +145,35 @@ export default function Chat() {
         setError(null);
 
         try {
+            const isFirstMessage = conversation.title === null;
+
             const result = await sendConversationMessage(
                 conversation.id,
                 content,
             );
-
+            
+            if (isFirstMessage) {
+                const updatedConversation = await getConversation(conversation.id);
+            
+                setConversation(updatedConversation);
+            
+                window.dispatchEvent(
+                    new CustomEvent('conversation-updated', {
+                        detail: updatedConversation,
+                    }),
+                );
+            }
+        
+            const updatedConversation = await getConversation(conversation.id);
+        
+            setConversation(updatedConversation);
+        
+            window.dispatchEvent(
+                new CustomEvent('conversation-updated', {
+                    detail: updatedConversation,
+                }),
+            );
+        
             setMessages((current) => [
                 ...current.map((message) =>
                     message.id === userMessage.id
@@ -201,6 +225,8 @@ export default function Chat() {
             return;
         }
     
+        const isFirstMessage = conversation.title === null;
+    
         setSending(true);
         setError(null);
     
@@ -209,6 +235,22 @@ export default function Chat() {
                 conversation.id,
                 failedMessage.content,
             );
+    
+            // The first attempt failed, so the title was not generated.
+            // If the retry succeeds, fetch the newly generated title.
+            if (isFirstMessage) {
+                const updatedConversation = await getConversation(
+                    conversation.id,
+                );
+    
+                setConversation(updatedConversation);
+    
+                window.dispatchEvent(
+                    new CustomEvent('conversation-updated', {
+                        detail: updatedConversation,
+                    }),
+                );
+            }
     
             setMessages((current) => [
                 ...current.map((message) =>

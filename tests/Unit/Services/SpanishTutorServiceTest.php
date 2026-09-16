@@ -26,6 +26,7 @@ class SpanishTutorServiceTest extends TestCase
                 'reply' => '¡Muy bien! ¿Qué hiciste ayer?',
                 'corrected_sentence' => 'Ayer fui al restaurante.',
                 'mistakes' => [],
+                'title' => 'Ayer en el restaurante',
             ];
         });
 
@@ -48,6 +49,8 @@ class SpanishTutorServiceTest extends TestCase
         ]);
 
         $this->assertCount(0, $result['mistakes']);
+
+        $this->assertDatabaseCount('mistakes', 0);
 
         SpanishTutor::assertPrompted(function ($prompt): bool {
             return str_contains(
@@ -79,6 +82,7 @@ class SpanishTutorServiceTest extends TestCase
                         'severity' => 'high',
                     ],
                 ],
+                'title' => 'Ayer en el restaurante',
             ];
         });
     
@@ -175,6 +179,7 @@ class SpanishTutorServiceTest extends TestCase
                 'reply' => 'Estoy bien también.',
                 'corrected_sentence' => 'Estoy bien también.',
                 'mistakes' => [],
+                'title' => '¿Cómo estás?',
             ];
         });
     
@@ -197,5 +202,93 @@ class SpanishTutorServiceTest extends TestCase
                 'Yo estoy muy bien.'
             );
         });
+    }
+
+    public function test_it_generates_and_saves_a_title_for_the_first_message(): void
+    {
+        $user = User::factory()->create();
+    
+        $conversation = Conversation::factory()
+            ->for($user)
+            ->create([
+                'title' => null,
+            ]);
+    
+        SpanishTutor::fake(function () {
+            return [
+                'reply' => '¡Muy bien! ¿Cómo estás?',
+                'corrected_sentence' => 'Hola, ¿cómo estás?',
+                'mistakes' => [],
+                'title' => '¿Cómo estás?',
+            ];
+        });
+    
+        app(SpanishTutorService::class)->sendMessage(
+            $conversation,
+            'Hola, ¿cómo estás?'
+        );
+    
+        $this->assertDatabaseHas('conversations', [
+            'id' => $conversation->id,
+            'title' => '¿Cómo estás?',
+        ]);
+    }
+
+    public function test_it_does_not_regenerate_the_title_on_subsequent_messages(): void
+    {
+        $user = User::factory()->create();
+    
+        $conversation = Conversation::factory()
+            ->for($user)
+            ->create([
+                'title' => 'Mi viaje a España',
+            ]);
+    
+        SpanishTutor::fake(function () {
+            return [
+                'reply' => '¡Qué interesante!',
+                'corrected_sentence' => 'Mañana voy a Madrid.',
+                'mistakes' => [],
+            ];
+        });
+    
+        app(SpanishTutorService::class)->sendMessage(
+            $conversation,
+            'Mañana voy a Madrid.'
+        );
+    
+        $this->assertDatabaseHas('conversations', [
+            'id' => $conversation->id,
+            'title' => 'Mi viaje a España',
+        ]);
+    }
+
+    public function test_it_does_not_save_a_title_when_the_first_message_fails(): void
+    {
+        $user = User::factory()->create();
+    
+        $conversation = Conversation::factory()
+            ->for($user)
+            ->create([
+                'title' => null,
+            ]);
+    
+        SpanishTutor::fake(function () {
+            throw new \Exception('Gemini API error');
+        });
+    
+        try {
+            app(SpanishTutorService::class)->sendMessage(
+                $conversation,
+                'Hola, ¿cómo estás?'
+            );
+        } catch (\RuntimeException) {
+            // Expected exception.
+        }
+    
+        $this->assertDatabaseHas('conversations', [
+            'id' => $conversation->id,
+            'title' => null,
+        ]);
     }
 }

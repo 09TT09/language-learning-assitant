@@ -169,3 +169,17 @@ export async function sendConversationMessage(
 
     return readJson<SendMessageResponse>(response);
 }
+
+export async function deleteConversation(id: number): Promise<void> {
+    const response = await fetch(`/api/conversations/${id}`, {
+        method: 'DELETE',
+        headers: {
+            Accept: 'application/json',
+        },
+        credentials: 'include',
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to delete conversation');
+    }
+}

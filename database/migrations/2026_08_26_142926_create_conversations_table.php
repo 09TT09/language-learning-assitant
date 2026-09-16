@@ -11,6 +11,7 @@ return new class extends Migration
         Schema::create('conversations', function (Blueprint $table) {
             $table->id();
 
+            $table->string('title', 100)->nullable()->after('level');
             $table->string('language', 10)->default('es');
             $table->string('level', 10)->default('A1');
 

@@ -56,6 +56,7 @@ export interface ChatMessage {
 export type Conversation = {
     id: number;
     user_id: number;
+    title: string | null;
     language: string;
     level: ConversationLevel;
     created_at: string;

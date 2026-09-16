@@ -8,6 +8,7 @@ export type Mistake = {
     severity: string;
     conversation_id: number;
     message_id: number;
+    sentence: string;
     created_at: string;
 };
 

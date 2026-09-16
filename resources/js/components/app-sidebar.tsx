@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react'
 import {
     BookOpen,
     FolderGit2,
@@ -6,6 +6,7 @@ import {
     MessageSquare,
     MessagesSquare,
     NotebookTabs,
+    Trash2,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -23,8 +24,12 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { NavUser } from '@/components/nav-user';
+import { DeleteConversationDialog } from '@/components/DeleteConversationDialog';
 
-import { getConversations } from '@/lib/conversation-api';
+import {
+    deleteConversation,
+    getConversations,
+} from '@/lib/conversation-api';
 
 import { chat, dashboard, mistakes } from '@/routes';
 
@@ -64,6 +69,7 @@ const footerNavItems: NavItem[] = [
 
 export function AppSidebar() {
     const [conversations, setConversations] = useState<Conversation[]>([]);
+    const [conversationToDelete, setConversationToDelete] = useState<Conversation | null>(null);
     const [loading, setLoading] = useState(true);
 
     async function loadConversations() {
@@ -77,22 +83,63 @@ export function AppSidebar() {
         }
     }
 
+    async function handleDeleteConversation(id: number) {
+        try {
+            await deleteConversation(id);
+    
+            setConversations((current) =>
+                current.filter((conversation) => conversation.id !== id),
+            );
+    
+            const params = new URLSearchParams(window.location.search);
+            const currentConversationId = params.get('conversation');
+    
+            if (currentConversationId === String(id)) {
+                router.visit(dashboard());
+            }
+        } catch {
+            // We will improve error handling later.
+        }
+    }
+
     useEffect(() => {
         loadConversations();
-
+    
         function handleConversationCreated() {
             loadConversations();
         }
-
+    
+        function handleConversationUpdated(event: Event) {
+            const customEvent = event as CustomEvent<Conversation>;
+    
+            setConversations((current) =>
+                current.map((conversation) =>
+                    conversation.id === customEvent.detail.id
+                        ? customEvent.detail
+                        : conversation,
+                ),
+            );
+        }
+    
         window.addEventListener(
             'conversation-created',
             handleConversationCreated,
         );
-
+    
+        window.addEventListener(
+            'conversation-updated',
+            handleConversationUpdated,
+        );
+    
         return () => {
             window.removeEventListener(
                 'conversation-created',
                 handleConversationCreated,
+            );
+    
+            window.removeEventListener(
+                'conversation-updated',
+                handleConversationUpdated,
             );
         };
     }, []);
@@ -128,15 +175,33 @@ export function AppSidebar() {
                     ) : (
                         <SidebarMenu className="px-2 py-1 min-h-0 flex-1 overflow-y-auto border-y">
                             {conversations.map((conversation) => (
-                                <SidebarMenuItem key={conversation.id}>
-                                    <SidebarMenuButton asChild>
-                                        <Link href={`${chat().url}?conversation=${conversation.id}`}>
+                                <SidebarMenuItem
+                                    key={conversation.id}
+                                    className="flex items-center"
+                                >
+                                    <SidebarMenuButton asChild className="flex-1">
+                                        <Link
+                                            href={`${chat().url}?conversation=${conversation.id}`}
+                                        >
                                             <MessageSquare />
                                             <span>
-                                                Spanish · {conversation.level}
+                                                {conversation.title || `Spanish · ${conversation.level}`}
                                             </span>
                                         </Link>
                                     </SidebarMenuButton>
+
+                                    <button
+                                        type="button"
+                                        onClick={(event) => {
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                            setConversationToDelete(conversation);
+                                        }}
+                                        className="mr-1 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-destructive"
+                                        aria-label="Delete conversation"
+                                    >
+                                        <Trash2 className="size-4" />
+                                    </button>
                                 </SidebarMenuItem>
                             ))}
                         </SidebarMenu>
@@ -151,6 +216,23 @@ export function AppSidebar() {
 
                 <NavUser />
             </SidebarFooter>
+
+            <DeleteConversationDialog
+                open={conversationToDelete !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setConversationToDelete(null);
+                    }
+                }}
+                onConfirm={() => {
+                    if (conversationToDelete) {
+                        handleDeleteConversation(conversationToDelete.id);
+                    }
+
+                    setConversationToDelete(null);
+                }}
+            />
+
         </Sidebar>
     );
 }
