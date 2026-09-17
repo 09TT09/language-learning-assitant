@@ -18,6 +18,7 @@ use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use App\Models\Mistake;
 use App\Models\Conversation;
+use App\Models\Message;
 
 /**
  * @property int $id
@@ -62,6 +63,14 @@ class User extends Authenticatable implements PasskeyUser
     {
         return $this->hasManyThrough(
             Mistake::class,
+            Conversation::class
+        );
+    }
+
+    public function messages(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            Message::class,
             Conversation::class
         );
     }

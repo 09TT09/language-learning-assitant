@@ -183,3 +183,22 @@ export async function deleteConversation(id: number): Promise<void> {
         throw new Error('Failed to delete conversation');
     }
 }
+
+export type DashboardStats = {
+    conversations_count: number;
+    mistakes_count: number;
+    messages_count: number;
+};
+
+export async function getDashboardStats(): Promise<DashboardStats> {
+    const response = await fetch('/api/dashboard', {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+    });
+
+    return readJson<DashboardStats>(response);
+}

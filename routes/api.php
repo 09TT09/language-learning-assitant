@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\ConversationMessageController;
 use App\Http\Controllers\Api\MistakeController;
+use App\Http\Controllers\Api\DashboardController;
 
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -44,6 +45,8 @@ Route::middleware('auth:sanctum')->group(function () {
         '/mistakes',
         [MistakeController::class, 'index']
     );
+
+    Route::get('/dashboard', [DashboardController::class, 'index']);
 
     Route::post(
         '/logout',
