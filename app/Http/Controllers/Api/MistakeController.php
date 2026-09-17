@@ -38,6 +38,7 @@ class MistakeController extends Controller
 
         $mistakes = $request->user()
             ->mistakes()
+            ->with('message.mistakes')
             ->latest()
             ->when(
                 isset($validated['type']),

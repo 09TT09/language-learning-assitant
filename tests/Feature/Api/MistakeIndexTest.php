@@ -237,4 +237,117 @@ class MistakeIndexTest extends TestCase
             )
             ->assertJsonPath('data.0.severity', 'medium');
     }
+
+    public function test_response_contains_sentence_and_all_message_mistakes(): void
+    {
+        $user = User::factory()->create();
+    
+        $conversation = Conversation::factory()
+            ->for($user)
+            ->create();
+    
+        $message = $conversation->messages()->create([
+            'role' => 'user',
+            'content' => 'Hola hoi fue por la playa conn mis amigo.',
+        ]);
+    
+        $firstMistake = Mistake::factory()
+            ->for($conversation)
+            ->for($message)
+            ->create([
+                'type' => 'spelling',
+                'subtype' => 'typo',
+                'original_text' => 'hoi',
+                'corrected_text' => 'hoy',
+                'start_position' => 5,
+                'end_position' => 8,
+                'explanation' => 'The correct spelling is hoy.',
+                'severity' => 'medium',
+            ]);
+    
+        Mistake::factory()
+            ->for($conversation)
+            ->for($message)
+            ->create([
+                'type' => 'grammar',
+                'subtype' => 'verb_conjugation',
+                'original_text' => 'fue',
+                'corrected_text' => 'fui',
+                'start_position' => 9,
+                'end_position' => 12,
+                'explanation' => 'Use fui with yo.',
+                'severity' => 'high',
+            ]);
+    
+        Mistake::factory()
+            ->for($conversation)
+            ->for($message)
+            ->create([
+                'type' => 'spelling',
+                'subtype' => 'typo',
+                'original_text' => 'conn',
+                'corrected_text' => 'con',
+                'start_position' => 26,
+                'end_position' => 30,
+                'explanation' => 'The correct spelling is con.',
+                'severity' => 'low',
+            ]);
+    
+        Mistake::factory()
+            ->for($conversation)
+            ->for($message)
+            ->create([
+                'type' => 'grammar',
+                'subtype' => 'number_agreement',
+                'original_text' => 'amigo',
+                'corrected_text' => 'amigos',
+                'start_position' => 35,
+                'end_position' => 40,
+                'explanation' => 'The noun must be plural.',
+                'severity' => 'medium',
+            ]);
+    
+        $response = $this
+            ->actingAs($user)
+            ->getJson('/api/mistakes');
+    
+        $response->assertOk()
+            ->assertJsonPath(
+                'data.0.sentence',
+                'Hola hoi fue por la playa conn mis amigo.'
+            )
+            ->assertJsonCount(4, 'data.0.message_mistakes')
+            ->assertJsonPath(
+                'data.0.message_mistakes.0.id',
+                $firstMistake->id
+            )
+            ->assertJsonPath(
+                'data.0.message_mistakes.0.original_text',
+                'hoi'
+            )
+            ->assertJsonPath(
+                'data.0.message_mistakes.0.corrected_text',
+                'hoy'
+            )
+            ->assertJsonPath(
+                'data.0.message_mistakes.0.start_position',
+                5
+            )
+            ->assertJsonPath(
+                'data.0.message_mistakes.0.end_position',
+                8
+            )
+            ->assertJsonPath(
+                'data.0.message_mistakes.0.type',
+                'spelling'
+            )
+            ->assertJsonPath(
+                'data.0.message_mistakes.0.subtype',
+                'typo'
+            )
+            ->assertJsonPath(
+                'data.0.message_mistakes.0.severity',
+                'medium'
+            );
+    }
 }

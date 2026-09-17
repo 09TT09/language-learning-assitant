@@ -56,16 +56,36 @@ class SpanishTutorService
                 // 6. Store mistakes against the learner's message
                 $mistakes = [];
     
+                $searchPosition = 0;
+
                 foreach ($data['mistakes'] as $mistake) {
+                    $startPosition = mb_stripos(
+                        $content,
+                        $mistake['original_text'],
+                        $searchPosition,
+                    );
+                
+                    if ($startPosition === false) {
+                        continue;
+                    }
+                
+                    $endPosition = $startPosition + mb_strlen(
+                        $mistake['original_text'],
+                    );
+                
                     $mistakes[] = $userMessage->mistakes()->create([
                         'conversation_id' => $conversation->id,
                         'type' => $mistake['type'],
                         'subtype' => $mistake['subtype'],
                         'original_text' => $mistake['original_text'],
                         'corrected_text' => $mistake['corrected_text'],
+                        'start_position' => $startPosition,
+                        'end_position' => $endPosition,
                         'explanation' => $mistake['explanation'],
                         'severity' => $mistake['severity'],
                     ]);
+                
+                    $searchPosition = $endPosition;
                 }
     
                 // 7. Return the tutor response

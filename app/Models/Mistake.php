@@ -20,6 +20,8 @@ class Mistake extends Model
         'subtype',
         'original_text',
         'corrected_text',
+        'start_position',
+        'end_position',
         'explanation',
         'severity',
     ];

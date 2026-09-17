@@ -36,30 +36,13 @@ export default function Chat() {
     } | null>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const conversationId = Number(params.get('conversation'));
-
-        if (!conversationId) {
-            return;
-        }
-
-        loadConversation(conversationId);
-    }, []);
-
-    useEffect(() => {
-        bottomRef.current?.scrollIntoView({
-            behavior: 'smooth',
-        });
-    }, [messages, sending]);
-
     async function loadConversation(conversationId: number) {
         setLoadingConversation(true);
         setError(null);
-
+    
         try {
             const loaded = await getConversation(conversationId);
-
+    
             setConversation(loaded);
             setMessages(loaded.messages);
             setLevel(loaded.level);
@@ -73,6 +56,27 @@ export default function Chat() {
             setLoadingConversation(false);
         }
     }
+    
+    useEffect(() => {
+        async function initializeConversation() {
+            const params = new URLSearchParams(window.location.search);
+            const conversationId = Number(params.get('conversation'));
+    
+            if (!conversationId) {
+                return;
+            }
+    
+            await loadConversation(conversationId);
+        }
+    
+        initializeConversation();
+    }, []);
+    
+    useEffect(() => {
+        bottomRef.current?.scrollIntoView({
+            behavior: 'smooth',
+        });
+    }, [messages, sending]);
 
     async function startConversation() {
         setError(null);
@@ -103,18 +107,6 @@ export default function Chat() {
         } finally {
             setStarting(false);
         }
-    }
-
-    async function selectConversation(conversationId: number) {
-        const url = new URL(window.location.href);
-        url.searchParams.set('conversation', String(conversationId));
-
-        window.history.pushState({}, '', url);
-
-        setConversation(null);
-        setMessages([]);
-
-        await loadConversation(conversationId);
     }
 
     function resetConversation() {

@@ -45,7 +45,7 @@ class SpanishTutor implements Agent, HasStructuredOutput
             - Do NOT report an error only because a proper noun is not capitalized.
             - Do NOT report capitalization differences as spelling mistakes.
             - You may still use correct capitalization in corrected_sentence.
-            - The corrected_sentence should be grammatically and orthographically correct, but mistakes should represent meaningful Spanish-learning errors, not capitalization preferences.
+            - corrected_sentence should be grammatically and orthographically correct, but mistakes should represent meaningful Spanish-learning errors, not capitalization preferences.
 
             Do not report stylistic preferences or valid alternatives.
 
@@ -75,14 +75,34 @@ class SpanishTutor implements Agent, HasStructuredOutput
             - subtype
             - original_text
             - corrected_text
+            - start_position
+            - end_position
             - explanation
             - severity
+
+            Position rules:
+
+            - start_position is the zero-based character index of the first character of original_text in the ORIGINAL learner message.
+            - end_position is the zero-based character index immediately after the last character of original_text in the ORIGINAL learner message.
+            - Positions must always refer to the ORIGINAL learner message, never to corrected_sentence.
+            - original_text must exactly match the characters found between start_position and end_position in the original message.
+            - Make sure start_position and end_position are accurate.
+            - If the same word or expression appears multiple times, use the position of the occurrence that is actually incorrect.
+            - If there are multiple mistakes, return a separate mistake for each genuine error.
+            - Do not merge separate mistakes into a single mistake unless they form one inseparable grammatical error.
+            - Mistake positions must not overlap unless two errors genuinely refer to the same text.
+            - Do not create a mistake solely to account for a correction in corrected_sentence.
 
             corrected_sentence must be the complete corrected latest message.
 
             Apply all necessary corrections to genuine errors only.
 
-            If there are no genuine errors, keep corrected_sentence identical to the original message and return an empty mistakes array.
+            The corrected_sentence may contain capitalization or punctuation normalization even when capitalization or punctuation was not reported as a mistake.
+
+            If there are no genuine errors:
+
+            - keep corrected_sentence identical to the original message
+            - return an empty mistakes array
 
             Do not analyze previous learner messages for errors.
         PROMPT;
@@ -149,17 +169,25 @@ class SpanishTutor implements Agent, HasStructuredOutput
                             ])
                             ->required(),
 
-                        'original_text' => $schema
-                            ->string()
-                            ->required(),
+                            'original_text' => $schema
+                                ->string()
+                                ->required(),
 
-                        'corrected_text' => $schema
-                            ->string()
-                            ->required(),
+                            'corrected_text' => $schema
+                                ->string()
+                                ->required(),
 
-                        'explanation' => $schema
-                            ->string()
-                            ->required(),
+                            'start_position' => $schema
+                                ->integer()
+                                ->required(),
+
+                            'end_position' => $schema
+                                ->integer()
+                                ->required(),
+
+                            'explanation' => $schema
+                                ->string()
+                                ->required(),
 
                         'severity' => $schema
                             ->string()

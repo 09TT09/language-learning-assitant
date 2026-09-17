@@ -1,16 +1,31 @@
-export type Mistake = {
+export interface MessageMistake {
     id: number;
     type: string;
     subtype: string;
     original_text: string;
     corrected_text: string;
+    start_position: number | null;
+    end_position: number | null;
+    explanation: string;
+    severity: string;
+}
+
+export interface Mistake {
+    id: number;
+    type: string;
+    subtype: string;
+    original_text: string;
+    corrected_text: string;
+    start_position: number | null;
+    end_position: number | null;
     explanation: string;
     severity: string;
     conversation_id: number;
     message_id: number;
-    sentence: string;
     created_at: string;
-};
+    sentence: string;
+    message_mistakes: MessageMistake[];
+}
 
 export type MistakesResponse = {
     data: Mistake[];

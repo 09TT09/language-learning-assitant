@@ -71,7 +71,7 @@ class SpanishTutorServiceTest extends TestCase
         SpanishTutor::fake(function () {
             return [
                 'reply' => '¡Muy bien! ¿Qué hiciste ayer?',
-                'corrected_sentence' => 'Ayer fui al restaurante.',
+                'corrected_sentence' => 'Ayer yo fui al restaurante.',
                 'mistakes' => [
                     [
                         'type' => 'grammar',
@@ -80,6 +80,8 @@ class SpanishTutorServiceTest extends TestCase
                         'corrected_text' => 'Yo fui',
                         'explanation' => 'The first person singular of ir in the preterite is fui.',
                         'severity' => 'high',
+                        'start_position' => 999,
+                        'end_position' => 999,
                     ],
                 ],
                 'title' => 'Ayer en el restaurante',
@@ -99,6 +101,104 @@ class SpanishTutorServiceTest extends TestCase
             'corrected_text' => 'Yo fui',
             'explanation' => 'The first person singular of ir in the preterite is fui.',
             'severity' => 'high',
+            'start_position' => 5,
+            'end_position' => 11,
+        ]);
+    }
+
+    public function test_it_calculates_positions_for_multiple_mistakes(): void
+    {
+        $user = User::factory()->create();
+    
+        $conversation = Conversation::factory()
+            ->for($user)
+            ->create();
+    
+        SpanishTutor::fake(function () {
+            return [
+                'reply' => '¡Muy bien!',
+    
+                'corrected_sentence' =>
+                    'Hola hoy fui por la playa con mis amigos',
+    
+                'mistakes' => [
+                    [
+                        'type' => 'spelling',
+                        'subtype' => 'typo',
+                        'original_text' => 'hoi',
+                        'corrected_text' => 'hoy',
+                        'explanation' => 'The correct spelling is hoy.',
+                        'severity' => 'medium',
+                        'start_position' => 999,
+                        'end_position' => 999,
+                    ],
+                    [
+                        'type' => 'grammar',
+                        'subtype' => 'verb_conjugation',
+                        'original_text' => 'fue',
+                        'corrected_text' => 'fui',
+                        'explanation' => 'The first person singular of ir in the preterite is fui.',
+                        'severity' => 'high',
+                        'start_position' => 999,
+                        'end_position' => 999,
+                    ],
+                    [
+                        'type' => 'spelling',
+                        'subtype' => 'typo',
+                        'original_text' => 'conn',
+                        'corrected_text' => 'con',
+                        'explanation' => 'The correct spelling is con.',
+                        'severity' => 'low',
+                        'start_position' => 999,
+                        'end_position' => 999,
+                    ],
+                    [
+                        'type' => 'grammar',
+                        'subtype' => 'number_agreement',
+                        'original_text' => 'amigo',
+                        'corrected_text' => 'amigos',
+                        'explanation' => 'The noun must agree with the plural possessive.',
+                        'severity' => 'medium',
+                        'start_position' => 999,
+                        'end_position' => 999,
+                    ],
+                ],
+    
+                'title' => 'Un paseo por la playa',
+            ];
+        });
+    
+        app(SpanishTutorService::class)->sendMessage(
+            $conversation,
+            'Hola hoi fue por la playa conn mis amigo.'
+        );
+    
+        $this->assertDatabaseHas('mistakes', [
+            'conversation_id' => $conversation->id,
+            'original_text' => 'hoi',
+            'start_position' => 5,
+            'end_position' => 8,
+        ]);
+    
+        $this->assertDatabaseHas('mistakes', [
+            'conversation_id' => $conversation->id,
+            'original_text' => 'fue',
+            'start_position' => 9,
+            'end_position' => 12,
+        ]);
+    
+        $this->assertDatabaseHas('mistakes', [
+            'conversation_id' => $conversation->id,
+            'original_text' => 'conn',
+            'start_position' => 26,
+            'end_position' => 30,
+        ]);
+    
+        $this->assertDatabaseHas('mistakes', [
+            'conversation_id' => $conversation->id,
+            'original_text' => 'amigo',
+            'start_position' => 35,
+            'end_position' => 40,
         ]);
     }
 

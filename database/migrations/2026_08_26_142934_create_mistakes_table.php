@@ -20,6 +20,8 @@ return new class extends Migration
             $table->text('corrected_text');
             $table->text('explanation');
             $table->string('severity', 20)->default('medium');
+            $table->unsignedInteger('start_position')->nullable();
+            $table->unsignedInteger('end_position')->nullable();
 
             $table->timestamps();
 

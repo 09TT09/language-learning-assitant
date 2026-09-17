@@ -11,8 +11,10 @@ import {
 import { useEffect, useState } from 'react';
 
 import AppLogo from '@/components/app-logo';
+import { DeleteConversationDialog } from '@/components/DeleteConversationDialog';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
+import { NavUser } from '@/components/nav-user';
 import {
     Sidebar,
     SidebarContent,
@@ -23,8 +25,6 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { NavUser } from '@/components/nav-user';
-import { DeleteConversationDialog } from '@/components/DeleteConversationDialog';
 
 import {
     deleteConversation,
@@ -103,7 +103,18 @@ export function AppSidebar() {
     }
 
     useEffect(() => {
-        loadConversations();
+        async function initializeConversations() {
+            try {
+                const loaded = await getConversations();
+                setConversations(loaded);
+            } catch {
+                setConversations([]);
+            } finally {
+                setLoading(false);
+            }
+        }
+    
+        initializeConversations();
     
         function handleConversationCreated() {
             loadConversations();

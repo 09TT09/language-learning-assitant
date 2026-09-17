@@ -20,12 +20,28 @@ class MistakeResource extends JsonResource
             'subtype' => $this->subtype->value,
             'original_text' => $this->original_text,
             'corrected_text' => $this->corrected_text,
+            'start_position' => $this->start_position,
+            'end_position' => $this->end_position,
             'explanation' => $this->explanation,
             'severity' => $this->severity->value,
             'conversation_id' => $this->conversation_id,
             'message_id' => $this->message_id,
-            'sentence' => $this->message->content,
             'created_at' => $this->created_at,
+            'sentence' => $this->message->content,
+        
+            'message_mistakes' => $this->message->mistakes
+                ->map(fn ($mistake) => [
+                    'id' => $mistake->id,
+                    'type' => $mistake->type->value,
+                    'subtype' => $mistake->subtype->value,
+                    'original_text' => $mistake->original_text,
+                    'corrected_text' => $mistake->corrected_text,
+                    'start_position' => $mistake->start_position,
+                    'end_position' => $mistake->end_position,
+                    'explanation' => $mistake->explanation,
+                    'severity' => $mistake->severity->value,
+                ])
+                ->values(),
         ];
     }
 }
