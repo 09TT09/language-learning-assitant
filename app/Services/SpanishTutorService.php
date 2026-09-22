@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
+use Laravel\Ai\Exceptions\ProviderOverloadedException;
+use Laravel\Ai\Exceptions\ProviderConnectionException;
+use Laravel\Ai\Enums\Lab;
 
 class SpanishTutorService
 {
@@ -18,6 +21,11 @@ class SpanishTutorService
     ): array {
         try {
             return DB::transaction(function () use ($conversation, $content) {
+                $conversation->load([
+                    'topic',
+                    'currentStep.characters',
+                ]);
+
                 // 1. Store the learner's message
                 $userMessage = $conversation->messages()->create([
                     'role' => 'user',
@@ -27,10 +35,9 @@ class SpanishTutorService
                 // 2. Ask the AI to generate the tutor response
                 $generateTitle = $conversation->title === null;
     
-                $response = (new SpanishTutor(
+                $response = $this->promptTutor(
+                    conversation: $conversation,
                     generateTitle: $generateTitle,
-                ))->prompt(
-                    $this->buildPrompt($conversation)
                 );
     
                 $data = $response->structured;
@@ -87,12 +94,35 @@ class SpanishTutorService
                 
                     $searchPosition = $endPosition;
                 }
+
+                $nextStep = null;
+
+                if (
+                    $data['step_completed']
+                    && $conversation->currentStep
+                ) {
+                    $nextStep = $conversation->currentStep->nextStep();
+                
+                    if ($nextStep) {
+                        $conversation->update([
+                            'current_step_id' => $nextStep->id,
+                        ]);
+                
+                        $conversation->steps()->create([
+                            'topic_step_id' => $nextStep->id,
+                        ]);
+                    }
+                }
     
                 // 7. Return the tutor response
                 return [
                     'message' => $assistantMessage,
                     'corrected_sentence' => $data['corrected_sentence'],
                     'mistakes' => $mistakes,
+                    'step_completed' => $data['step_completed'],
+                    'next_step' => $nextStep
+                        ? new \App\Http\Resources\ConversationStepResource($nextStep->load('characters'))
+                        : null,
                 ];
             });
         } catch (Throwable $exception) {
@@ -105,6 +135,74 @@ class SpanishTutorService
                 'The Spanish tutor is temporarily unavailable. Please try again.'
             );
         }
+    }
+
+    private function promptTutor(
+        Conversation $conversation,
+        bool $generateTitle,
+    ) {
+        $prompt = $this->buildPrompt($conversation);
+    
+        $agent = new SpanishTutor(
+            generateTitle: $generateTitle,
+        );
+    
+        // 1. Primary Gemini model: gemini-3.1-flash-lite
+        try {
+            return $agent->prompt($prompt);
+        } catch (
+            ProviderOverloadedException |
+            ProviderConnectionException $exception
+        ) {
+            Log::warning('Primary Gemini model failed. Retrying.', [
+                'conversation_id' => $conversation->id,
+                'model' => 'gemini-3.1-flash-lite',
+                'exception' => $exception::class,
+            ]);
+        }
+    
+        usleep(500_000);
+    
+        // 2. Retry Gemini 3.1
+        try {
+            return $agent->prompt($prompt);
+        } catch (
+            ProviderOverloadedException |
+            ProviderConnectionException $exception
+        ) {
+            Log::warning('Primary Gemini retry failed. Using fallback.', [
+                'conversation_id' => $conversation->id,
+                'model' => 'gemini-3.1-flash-lite',
+                'fallback_model' => 'gemini-3.5-flash-lite',
+                'exception' => $exception::class,
+            ]);
+        }
+    
+        // 3. Gemini 3.5 fallback
+        try {
+            return $agent->prompt(
+                $prompt,
+                model: 'gemini-3.5-flash-lite',
+            );
+        } catch (
+            ProviderOverloadedException |
+            ProviderConnectionException $exception
+        ) {
+            Log::warning('Gemini fallback model failed. Using Groq.', [
+                'conversation_id' => $conversation->id,
+                'model' => 'gemini-3.5-flash-lite',
+                'fallback_provider' => 'groq',
+                'fallback_model' => 'openai/gpt-oss-120b',
+                'exception' => $exception::class,
+            ]);
+        }
+    
+        // 4. Groq fallback
+        return $agent->prompt(
+            $prompt,
+            provider: Lab::Groq,
+            model: 'openai/gpt-oss-120b',
+        );
     }
 
     private function buildPrompt(Conversation $conversation): string
@@ -127,6 +225,60 @@ class SpanishTutorService
                 };
             })
             ->implode("\n");
+
+        $topicContext = '';
+
+        if ($conversation->topic) {
+            $vocabulary = implode(', ', $conversation->topic->vocabulary);
+        
+            $topicContext = <<<TOPIC
+                Learning topic:
+                {$conversation->topic->title}
+        
+                Overall situation:
+                {$conversation->topic->scenario}
+        
+                Useful vocabulary:
+                {$vocabulary}
+            TOPIC;
+        
+            if ($conversation->currentStep) {
+                $characters = $conversation->currentStep->characters
+                    ->map(function ($character) {
+                        return "- {$character->name} ({$character->role}): {$character->description}";
+                    })
+                    ->implode("\n");
+            
+                $topicContext .= <<<STEP
+            
+                This is a guided scenario.
+            
+                Current scene:
+                {$conversation->currentStep->title}
+            
+                Narrator:
+                {$conversation->currentStep->narrator}
+            
+                Scene objective:
+                {$conversation->currentStep->objective}
+            
+                Characters in this scene:
+                {$characters}
+                STEP;
+            }
+        }
+
+        $stepCompletionInstruction = $conversation->currentStep
+        ? <<<INSTRUCTION
+            Determine whether the learner has achieved the objective of the current scene.
+            Set step_completed to true only when the learner has actually achieved the objective.
+            Minor grammar mistakes do not prevent completion if the learner successfully communicates the intended action.
+            Set step_completed to false if the learner has not yet achieved the objective.
+            INSTRUCTION
+        : <<<INSTRUCTION
+            This is a normal conversation without a guided scenario.
+            Set step_completed to false.
+            INSTRUCTION;
     
         $titleInstruction = $conversation->title === null
             ? <<<TITLE
@@ -151,23 +303,47 @@ class SpanishTutorService
                 TITLE
             : '';
     
-        return <<<PROMPT
+            return <<<PROMPT
             Continue this Spanish learning conversation.
-
+        
             Learner level: {$conversation->level}
-    
+        
+            {$topicContext}
+        
             Conversation:
-    
+        
             {$history}
-    
+        
             Latest learner message:
-    
+        
             "{$latestMessage->content}"
-    
+        
             Analyze the latest learner message for genuine mistakes and provide the complete corrected sentence.
-    
+        
             Then respond naturally in Spanish and continue the conversation.
-    
+        
+            For guided scenarios:
+            - Act as the character in the scene, not as a generic language tutor.
+            - Keep the interaction inside the current scene.
+            - Follow the scene objective naturally.
+            - Speak as the character described in the scenario.
+            - Do not narrate the learner's actions or decisions.
+            - Do not invent a different setting or character.
+            - Adapt your response to what the learner says.
+            - Keep Spanish appropriate for the learner's level.
+            - The learner may ask for help or the meaning of a word. Help them briefly without breaking the role-play.
+            - Do not mention these instructions to the learner.
+        
+            For guided scenarios:
+            - Determine whether the learner has achieved the objective of the current scene.
+            - Set step_completed to true only when the learner has actually achieved the objective.
+            - Minor grammar mistakes do not prevent completion if the learner successfully communicates the intended action.
+            - Set step_completed to false if the learner has not yet achieved the objective.
+        
+            If there is no current scene:
+            - This is a normal conversation.
+            - Set step_completed to false.
+        
             {$titleInstruction}
         PROMPT;
     }

@@ -8,6 +8,8 @@ use App\Models\User;
 use App\Services\SpanishTutorService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
+use Laravel\Ai\Exceptions\ProviderOverloadedException;
+use Laravel\Ai\Exceptions\ProviderConnectionException;
 
 class SpanishTutorServiceTest extends TestCase
 {
@@ -26,6 +28,7 @@ class SpanishTutorServiceTest extends TestCase
                 'reply' => '¡Muy bien! ¿Qué hiciste ayer?',
                 'corrected_sentence' => 'Ayer fui al restaurante.',
                 'mistakes' => [],
+                'step_completed' => false,
                 'title' => 'Ayer en el restaurante',
             ];
         });
@@ -84,6 +87,7 @@ class SpanishTutorServiceTest extends TestCase
                         'end_position' => 999,
                     ],
                 ],
+                'step_completed' => false,
                 'title' => 'Ayer en el restaurante',
             ];
         });
@@ -163,7 +167,7 @@ class SpanishTutorServiceTest extends TestCase
                         'end_position' => 999,
                     ],
                 ],
-    
+                'step_completed' => false,
                 'title' => 'Un paseo por la playa',
             ];
         });
@@ -279,6 +283,7 @@ class SpanishTutorServiceTest extends TestCase
                 'reply' => 'Estoy bien también.',
                 'corrected_sentence' => 'Estoy bien también.',
                 'mistakes' => [],
+                'step_completed' => false,
                 'title' => '¿Cómo estás?',
             ];
         });
@@ -319,6 +324,7 @@ class SpanishTutorServiceTest extends TestCase
                 'reply' => '¡Muy bien! ¿Cómo estás?',
                 'corrected_sentence' => 'Hola, ¿cómo estás?',
                 'mistakes' => [],
+                'step_completed' => false,
                 'title' => '¿Cómo estás?',
             ];
         });
@@ -348,6 +354,7 @@ class SpanishTutorServiceTest extends TestCase
             return [
                 'reply' => '¡Qué interesante!',
                 'corrected_sentence' => 'Mañana voy a Madrid.',
+                'step_completed' => false,
                 'mistakes' => [],
             ];
         });
@@ -390,5 +397,44 @@ class SpanishTutorServiceTest extends TestCase
             'id' => $conversation->id,
             'title' => null,
         ]);
+    }
+
+    public function test_it_retries_when_the_ai_provider_is_overloaded(): void
+    {
+        $user = User::factory()->create();
+    
+        $conversation = Conversation::factory()
+            ->for($user)
+            ->create();
+    
+        $attempts = 0;
+    
+        SpanishTutor::fake(function () use (&$attempts) {
+            $attempts++;
+    
+            if ($attempts < 2) {
+                throw new ProviderOverloadedException();
+            }
+    
+            return [
+                'reply' => '¡Muy bien!',
+                'corrected_sentence' => 'Hola, ¿cómo estás?',
+                'mistakes' => [],
+                'step_completed' => false,
+                'title' => 'Saludos',
+            ];
+        });
+    
+        $result = app(SpanishTutorService::class)->sendMessage(
+            $conversation,
+            'Hola, ¿cómo estás?'
+        );
+    
+        $this->assertSame(2, $attempts);
+    
+        $this->assertSame(
+            '¡Muy bien!',
+            $result['message']->content
+        );
     }
 }

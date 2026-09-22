@@ -49,6 +49,7 @@ export interface ChatMessage {
     id: number | string;
     role: 'user' | 'assistant';
     content: string;
+    created_at: string;
     mistakes?: Mistake[];
     corrected_sentence?: string;
 }
@@ -56,6 +57,10 @@ export interface ChatMessage {
 export type Conversation = {
     id: number;
     user_id: number;
+    topic_id: number | null;
+    current_step_id: number | null;
+    current_step: ConversationStep | null;
+    scenario_steps: ConversationScenarioStep[];
     title: string | null;
     language: string;
     level: ConversationLevel;
@@ -67,13 +72,30 @@ export type ConversationWithMessages = Conversation & {
     messages: ChatMessage[];
 };
 
-export type SendMessageResponse = {
-    corrected_sentence: string;
-    message: {
+export type ConversationStep = {
+    id: number;
+    position: number;
+    title: string;
+    narrator: string;
+    objective: string;
+    characters: {
         id: number;
-        conversation_id: number;
-        role: 'assistant' | 'user';
-        content: string;
-    };
+        name: string;
+        role: string;
+        description: string | null;
+    }[];
+};
+
+export type ConversationScenarioStep = {
+    id: number;
+    created_at: string;
+    step: ConversationStep;
+};
+
+export type SendMessageResponse = {
+    message: ChatMessage;
+    corrected_sentence: string;
     mistakes: Mistake[];
+    step_completed: boolean;
+    next_step: ConversationStep | null;
 };

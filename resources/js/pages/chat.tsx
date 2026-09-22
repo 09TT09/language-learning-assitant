@@ -6,6 +6,7 @@ import { ChatComposer } from '@/components/chat/chat-composer';
 import { ChatStart } from '@/components/chat/chat-start';
 import { ChatThread } from '@/components/chat/chat-thread';
 import { Button } from '@/components/ui/button';
+import ScenarioNarrator from '@/components/scenario-narrator';
 
 import {
     ApiError,
@@ -20,6 +21,7 @@ import type {
     ChatMessage,
     Conversation,
     ConversationLevel,
+    ConversationStep,
 } from '@/types/conversation';
 
 export default function Chat() {
@@ -30,6 +32,8 @@ export default function Chat() {
     const [loadingConversation, setLoadingConversation] = useState(false);
     const [sending, setSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [currentStep, setCurrentStep] =
+    useState<ConversationStep | null>(null);
     const [failedMessage, setFailedMessage] = useState<{
         id: string;
         content: string;
@@ -44,6 +48,7 @@ export default function Chat() {
             const loaded = await getConversation(conversationId);
     
             setConversation(loaded);
+            setCurrentStep(loaded.current_step);
             setMessages(loaded.messages);
             setLevel(loaded.level);
         } catch (caught) {
@@ -86,6 +91,7 @@ export default function Chat() {
             const created = await createConversation(level);
 
             setConversation(created);
+            setCurrentStep(created.current_step);
             setMessages([]);
 
             window.dispatchEvent(
@@ -124,55 +130,44 @@ export default function Chat() {
         if (!conversation) {
             return;
         }
-
+    
         const userMessage: ChatMessage = {
             id: `user-${Date.now()}`,
             role: 'user',
             content,
+            created_at: new Date().toISOString(),
             mistakes: [],
         };
-
+    
         setMessages((current) => [...current, userMessage]);
         setSending(true);
         setError(null);
-
+    
         try {
-            const isFirstMessage = conversation.title === null;
-
             const result = await sendConversationMessage(
                 conversation.id,
                 content,
             );
-            
-            if (isFirstMessage) {
-                const updatedConversation = await getConversation(conversation.id);
-            
-                setConversation(updatedConversation);
-            
-                window.dispatchEvent(
-                    new CustomEvent('conversation-updated', {
-                        detail: updatedConversation,
-                    }),
-                );
-            }
-        
+    
             const updatedConversation = await getConversation(conversation.id);
-        
+
             setConversation(updatedConversation);
-        
+            setCurrentStep(updatedConversation.current_step);
+
             window.dispatchEvent(
                 new CustomEvent('conversation-updated', {
                     detail: updatedConversation,
                 }),
             );
-        
+    
             setMessages((current) => [
                 ...current.map((message) =>
                     message.id === userMessage.id
                         ? {
                               ...message,
                               mistakes: result.mistakes,
-                              corrected_sentence: result.corrected_sentence,
+                              corrected_sentence:
+                                  result.corrected_sentence,
                           }
                         : message,
                 ),
@@ -180,33 +175,11 @@ export default function Chat() {
                     id: result.message.id,
                     role: 'assistant',
                     content: result.message.content,
+                    created_at: result.message.created_at,
                 },
             ]);
         } catch (caught) {
-            if (caught instanceof ApiError && caught.status === 429) {
-                setError(
-                    'You have sent too many messages. Please wait a moment before trying again.',
-                );
-            } else if (caught instanceof ApiError && caught.status === 503) {
-                setFailedMessage({
-                    id: userMessage.id.toString(),
-                    content,
-                });
-        
-                setError(caught.message);
-            } else {
-                setMessages((current) =>
-                    current.filter(
-                        (message) => message.id !== userMessage.id,
-                    ),
-                );
-        
-                setError(
-                    caught instanceof Error
-                        ? caught.message
-                        : 'Could not send your message.',
-                );
-            }
+            // keep your existing catch block
         } finally {
             setSending(false);
         }
@@ -236,6 +209,7 @@ export default function Chat() {
                 );
     
                 setConversation(updatedConversation);
+                setCurrentStep(updatedConversation.current_step);
     
                 window.dispatchEvent(
                     new CustomEvent('conversation-updated', {
@@ -259,6 +233,7 @@ export default function Chat() {
                     id: result.message.id,
                     role: 'assistant',
                     content: result.message.content,
+                    created_at: result.message.created_at,
                 },
             ]);
     
@@ -335,6 +310,7 @@ export default function Chat() {
                         <>
                             <ChatThread
                                 messages={messages}
+                                scenarioSteps={conversation?.scenario_steps ?? []}
                                 waiting={sending}
                             />
 

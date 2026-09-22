@@ -10,9 +10,12 @@ use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Promptable;
 use Stringable;
+use Laravel\Ai\Attributes\Timeout;
 
 #[Provider(Lab::Gemini)]
 #[Model('gemini-3.1-flash-lite')]
+//#[Model('gemini-3.5-flash-lite')]
+#[Timeout(7)]
 class SpanishTutor implements Agent, HasStructuredOutput
 {
     use Promptable;
@@ -105,6 +108,13 @@ class SpanishTutor implements Agent, HasStructuredOutput
             - return an empty mistakes array
 
             Do not analyze previous learner messages for errors.
+
+            For guided scenarios:
+            - Determine whether the learner has successfully achieved the current scene objective.
+            - Set step_completed to true only when the learner has actually achieved the objective.
+            - Do not mark the step as completed merely because the learner's Spanish is grammatically correct.
+            - Minor grammar mistakes should not prevent completion if the learner successfully communicates the intended action.
+            - Set step_completed to false if the learner has not yet achieved the objective.
         PROMPT;
 
         if ($this->generateTitle) {
@@ -135,6 +145,10 @@ class SpanishTutor implements Agent, HasStructuredOutput
 
             'corrected_sentence' => $schema
                 ->string()
+                ->required(),
+
+            'step_completed' => $schema
+                ->boolean()
                 ->required(),
 
             'mistakes' => $schema

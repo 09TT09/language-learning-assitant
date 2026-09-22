@@ -106,6 +106,7 @@ export async function getConversations(): Promise<Conversation[]> {
  */
 export async function createConversation(
     level: ConversationLevel,
+    topicId?: number,
 ): Promise<Conversation> {
     await initializeCsrf();
 
@@ -118,6 +119,7 @@ export async function createConversation(
             body: JSON.stringify({
                 language: 'es',
                 level,
+                ...(topicId !== undefined ? { topic_id: topicId } : {}),
             }),
         },
     );
@@ -201,4 +203,52 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     });
 
     return readJson<DashboardStats>(response);
+}
+
+export type Topic = {
+    id: number;
+    title: string;
+    slug: string;
+    description: string;
+    level: ConversationLevel;
+    scenario: string;
+    vocabulary: string[];
+};
+
+export async function getTopics(
+    level?: ConversationLevel,
+): Promise<Topic[]> {
+    const url = new URL('/api/topics', window.location.origin);
+
+    if (level) {
+        url.searchParams.set('level', level);
+    }
+
+    const response = await fetch(url, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+    });
+
+    const data = await readJson<{ data: Topic[] }>(response);
+
+    return data.data;
+}
+
+export async function getTopic(slug: string): Promise<Topic> {
+    const response = await fetch(`/api/topics/${encodeURIComponent(slug)}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+    });
+
+    const data = await readJson<{ data: Topic }>(response);
+
+    return data.data;
 }

@@ -31,7 +31,7 @@ import {
     getConversations,
 } from '@/lib/conversation-api';
 
-import { chat, dashboard, mistakes } from '@/routes';
+import { chat, dashboard, mistakes, topics } from '@/routes';
 
 import type { NavItem } from '@/types';
 import type { Conversation } from '@/types/conversation';
@@ -41,6 +41,11 @@ const mainNavItems: NavItem[] = [
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
+    },
+    {
+        title: 'Topics',
+        href: topics(),
+        icon: BookOpen,
     },
     {
         title: 'Practice',
