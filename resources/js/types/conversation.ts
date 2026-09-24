@@ -86,8 +86,15 @@ export type ConversationStep = {
     }[];
 };
 
+export type ConversationStepStatus =
+    | 'locked'
+    | 'active'
+    | 'completed';
+
 export type ConversationScenarioStep = {
     id: number;
+    status: ConversationStepStatus;
+    completed_at: string | null;
     created_at: string;
     step: ConversationStep;
 };
@@ -96,6 +103,5 @@ export type SendMessageResponse = {
     message: ChatMessage;
     corrected_sentence: string;
     mistakes: Mistake[];
-    step_completed: boolean;
-    next_step: ConversationStep | null;
+    completed_steps: number[];
 };

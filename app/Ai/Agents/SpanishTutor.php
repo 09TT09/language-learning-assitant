@@ -147,8 +147,11 @@ class SpanishTutor implements Agent, HasStructuredOutput
                 ->string()
                 ->required(),
 
-            'step_completed' => $schema
-                ->boolean()
+            'completed_step_positions' => $schema
+                ->array()
+                ->items(
+                    $schema->integer()
+                )
                 ->required(),
 
             'mistakes' => $schema
@@ -210,6 +213,21 @@ class SpanishTutor implements Agent, HasStructuredOutput
                                 'medium',
                                 'high',
                             ])
+                            ->required(),
+                    ])
+                )
+                ->required(),
+
+            'scenario_state_updates' => $schema
+                ->array()
+                ->items(
+                    $schema->object(fn ($schema) => [
+                        'key' => $schema
+                            ->string()
+                            ->required(),
+
+                        'value' => $schema
+                            ->string()
                             ->required(),
                     ])
                 )

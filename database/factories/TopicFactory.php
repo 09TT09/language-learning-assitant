@@ -1,4 +1,3 @@
-```php
 <?php
 
 namespace Database\Factories;
@@ -31,4 +30,3 @@ class TopicFactory extends Factory
         ];
     }
 }
-```

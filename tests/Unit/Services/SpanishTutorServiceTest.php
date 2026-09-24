@@ -3,13 +3,15 @@
 namespace Tests\Unit\Services;
 
 use App\Ai\Agents\SpanishTutor;
+use App\Enums\ConversationStepStatus;
 use App\Models\Conversation;
+use App\Models\Topic;
 use App\Models\User;
 use App\Services\SpanishTutorService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\TestCase;
 use Laravel\Ai\Exceptions\ProviderOverloadedException;
 use Laravel\Ai\Exceptions\ProviderConnectionException;
+use Tests\TestCase;
 
 class SpanishTutorServiceTest extends TestCase
 {
@@ -28,7 +30,8 @@ class SpanishTutorServiceTest extends TestCase
                 'reply' => '¡Muy bien! ¿Qué hiciste ayer?',
                 'corrected_sentence' => 'Ayer fui al restaurante.',
                 'mistakes' => [],
-                'step_completed' => false,
+                'completed_step_positions' => [],
+'scenario_state_updates' => [],
                 'title' => 'Ayer en el restaurante',
             ];
         });
@@ -87,7 +90,8 @@ class SpanishTutorServiceTest extends TestCase
                         'end_position' => 999,
                     ],
                 ],
-                'step_completed' => false,
+                'completed_step_positions' => [],
+'scenario_state_updates' => [],
                 'title' => 'Ayer en el restaurante',
             ];
         });
@@ -167,7 +171,8 @@ class SpanishTutorServiceTest extends TestCase
                         'end_position' => 999,
                     ],
                 ],
-                'step_completed' => false,
+                'completed_step_positions' => [],
+                'scenario_state_updates' => [],
                 'title' => 'Un paseo por la playa',
             ];
         });
@@ -283,7 +288,8 @@ class SpanishTutorServiceTest extends TestCase
                 'reply' => 'Estoy bien también.',
                 'corrected_sentence' => 'Estoy bien también.',
                 'mistakes' => [],
-                'step_completed' => false,
+                'completed_step_positions' => [],
+                'scenario_state_updates' => [],
                 'title' => '¿Cómo estás?',
             ];
         });
@@ -324,7 +330,8 @@ class SpanishTutorServiceTest extends TestCase
                 'reply' => '¡Muy bien! ¿Cómo estás?',
                 'corrected_sentence' => 'Hola, ¿cómo estás?',
                 'mistakes' => [],
-                'step_completed' => false,
+                'completed_step_positions' => [],
+                'scenario_state_updates' => [],
                 'title' => '¿Cómo estás?',
             ];
         });
@@ -354,7 +361,8 @@ class SpanishTutorServiceTest extends TestCase
             return [
                 'reply' => '¡Qué interesante!',
                 'corrected_sentence' => 'Mañana voy a Madrid.',
-                'step_completed' => false,
+                'completed_step_positions' => [],
+                'scenario_state_updates' => [],
                 'mistakes' => [],
             ];
         });
@@ -420,7 +428,8 @@ class SpanishTutorServiceTest extends TestCase
                 'reply' => '¡Muy bien!',
                 'corrected_sentence' => 'Hola, ¿cómo estás?',
                 'mistakes' => [],
-                'step_completed' => false,
+                'completed_step_positions' => [],
+                'scenario_state_updates' => [],
                 'title' => 'Saludos',
             ];
         });
@@ -436,5 +445,458 @@ class SpanishTutorServiceTest extends TestCase
             '¡Muy bien!',
             $result['message']->content
         );
+    }
+
+    public function test_it_completes_an_active_step_and_unlocks_its_dependents(): void
+    {
+        $user = User::factory()->create();
+    
+        $conversation = Conversation::factory()
+            ->for($user)
+            ->create();
+    
+        $topic = Topic::factory()->create([
+            'level' => 'A1',
+        ]);
+    
+        $step1 = $topic->steps()->create([
+            'position' => 1,
+            'title' => 'Arriving',
+            'narrator' => 'You arrive at a restaurant.',
+            'objective' => 'Ask for a table.',
+        ]);
+    
+        $step2 = $topic->steps()->create([
+            'position' => 2,
+            'title' => 'Ordering',
+            'narrator' => 'You are seated at the table.',
+            'objective' => 'Order your meal.',
+        ]);
+    
+        $step3 = $topic->steps()->create([
+            'position' => 3,
+            'title' => 'Drinking',
+            'narrator' => 'The waiter asks what you want to drink.',
+            'objective' => 'Order a drink.',
+        ]);
+    
+        $step2->dependencies()->attach($step1);
+        $step3->dependencies()->attach($step1);
+    
+        $conversation->update([
+            'topic_id' => $topic->id,
+        ]);
+    
+        $conversation->steps()->create([
+            'topic_step_id' => $step1->id,
+            'status' => ConversationStepStatus::ACTIVE,
+        ]);
+    
+        $conversation->steps()->create([
+            'topic_step_id' => $step2->id,
+            'status' => ConversationStepStatus::LOCKED,
+        ]);
+    
+        $conversation->steps()->create([
+            'topic_step_id' => $step3->id,
+            'status' => ConversationStepStatus::LOCKED,
+        ]);
+    
+        SpanishTutor::fake(function () {
+            return [
+                'reply' => 'Perfecto. ¿Qué desea pedir?',
+                'corrected_sentence' => 'Una mesa para dos, por favor.',
+                'mistakes' => [],
+                'completed_step_positions' => [1],
+                'scenario_state_updates' => [],
+                'title' => 'En el restaurante',
+            ];
+        });
+    
+        $result = app(SpanishTutorService::class)->sendMessage(
+            $conversation,
+            'Una mesa para dos, por favor.'
+        );
+    
+        $this->assertSame([1], $result['completed_steps']);
+    
+        $this->assertDatabaseHas('conversation_steps', [
+            'conversation_id' => $conversation->id,
+            'topic_step_id' => $step1->id,
+            'status' => ConversationStepStatus::COMPLETED->value,
+        ]);
+    
+        $this->assertDatabaseHas('conversation_steps', [
+            'conversation_id' => $conversation->id,
+            'topic_step_id' => $step2->id,
+            'status' => ConversationStepStatus::ACTIVE->value,
+        ]);
+    
+        $this->assertDatabaseHas('conversation_steps', [
+            'conversation_id' => $conversation->id,
+            'topic_step_id' => $step3->id,
+            'status' => ConversationStepStatus::ACTIVE->value,
+        ]);
+    }
+
+    public function test_it_completes_multiple_active_steps_and_unlocks_their_dependents(): void
+    {
+        $user = User::factory()->create();
+    
+        $conversation = Conversation::factory()
+            ->for($user)
+            ->create();
+    
+        $topic = Topic::factory()->create([
+            'level' => 'A1',
+        ]);
+    
+        $step1 = $topic->steps()->create([
+            'position' => 1,
+            'title' => 'Arriving',
+            'narrator' => 'You arrive at a restaurant.',
+            'objective' => 'Ask for a table.',
+        ]);
+    
+        $step2 = $topic->steps()->create([
+            'position' => 2,
+            'title' => 'Choosing your meal',
+            'narrator' => 'The waiter asks what you would like to eat.',
+            'objective' => 'Order your meal.',
+        ]);
+    
+        $step3 = $topic->steps()->create([
+            'position' => 3,
+            'title' => 'Ordering a drink',
+            'narrator' => 'The waiter asks what you would like to drink.',
+            'objective' => 'Order a drink.',
+        ]);
+    
+        $step4 = $topic->steps()->create([
+            'position' => 4,
+            'title' => 'Eating',
+            'narrator' => 'The waiter asks whether everything was good.',
+            'objective' => 'Talk briefly about your meal.',
+        ]);
+    
+        $step5 = $topic->steps()->create([
+            'position' => 5,
+            'title' => 'Asking for the bill',
+            'narrator' => 'You are ready to leave the restaurant.',
+            'objective' => 'Ask for the bill.',
+        ]);
+    
+        $step2->dependencies()->attach($step1);
+        $step3->dependencies()->attach($step1);
+    
+        $step4->dependencies()->attach([
+            $step2->id,
+            $step3->id,
+        ]);
+    
+        $step5->dependencies()->attach([
+            $step2->id,
+            $step3->id,
+        ]);
+    
+        $conversation->update([
+            'topic_id' => $topic->id,
+        ]);
+    
+        $conversation->steps()->create([
+            'topic_step_id' => $step1->id,
+            'status' => ConversationStepStatus::COMPLETED,
+        ]);
+    
+        $conversation->steps()->create([
+            'topic_step_id' => $step2->id,
+            'status' => ConversationStepStatus::ACTIVE,
+        ]);
+    
+        $conversation->steps()->create([
+            'topic_step_id' => $step3->id,
+            'status' => ConversationStepStatus::ACTIVE,
+        ]);
+    
+        $conversation->steps()->create([
+            'topic_step_id' => $step4->id,
+            'status' => ConversationStepStatus::LOCKED,
+        ]);
+    
+        $conversation->steps()->create([
+            'topic_step_id' => $step5->id,
+            'status' => ConversationStepStatus::LOCKED,
+        ]);
+    
+        SpanishTutor::fake(function () {
+            return [
+                'reply' => 'Perfecto. ¿Todo estaba bien?',
+                'corrected_sentence' => 'Quiero una paella y una cerveza, por favor.',
+                'mistakes' => [],
+                'completed_step_positions' => [2, 3],
+                'scenario_state_updates' => [],
+                'title' => 'En el restaurante',
+            ];
+        });
+    
+        $result = app(SpanishTutorService::class)->sendMessage(
+            $conversation,
+            'Quiero una paella y una cerveza, por favor.'
+        );
+    
+        $this->assertSame([2, 3], $result['completed_steps']);
+    
+        $this->assertDatabaseHas('conversation_steps', [
+            'conversation_id' => $conversation->id,
+            'topic_step_id' => $step2->id,
+            'status' => ConversationStepStatus::COMPLETED->value,
+        ]);
+    
+        $this->assertDatabaseHas('conversation_steps', [
+            'conversation_id' => $conversation->id,
+            'topic_step_id' => $step3->id,
+            'status' => ConversationStepStatus::COMPLETED->value,
+        ]);
+    
+        $this->assertDatabaseHas('conversation_steps', [
+            'conversation_id' => $conversation->id,
+            'topic_step_id' => $step4->id,
+            'status' => ConversationStepStatus::ACTIVE->value,
+        ]);
+    
+        $this->assertDatabaseHas('conversation_steps', [
+            'conversation_id' => $conversation->id,
+            'topic_step_id' => $step5->id,
+            'status' => ConversationStepStatus::ACTIVE->value,
+        ]);
+    }
+
+    public function test_it_unlocks_the_final_step_after_all_dependencies_are_completed(): void
+    {
+        $user = User::factory()->create();
+    
+        $conversation = Conversation::factory()
+            ->for($user)
+            ->create();
+    
+        $topic = Topic::factory()->create([
+            'level' => 'A1',
+        ]);
+    
+        $step1 = $topic->steps()->create([
+            'position' => 1,
+            'title' => 'Arriving',
+            'narrator' => 'You arrive at a restaurant.',
+            'objective' => 'Ask for a table.',
+        ]);
+    
+        $step2 = $topic->steps()->create([
+            'position' => 2,
+            'title' => 'Choosing your meal',
+            'narrator' => 'The waiter asks what you would like to eat.',
+            'objective' => 'Order your meal.',
+        ]);
+    
+        $step3 = $topic->steps()->create([
+            'position' => 3,
+            'title' => 'Ordering a drink',
+            'narrator' => 'The waiter asks what you would like to drink.',
+            'objective' => 'Order a drink.',
+        ]);
+    
+        $step4 = $topic->steps()->create([
+            'position' => 4,
+            'title' => 'Eating',
+            'narrator' => 'The waiter asks whether everything was good.',
+            'objective' => 'Talk briefly about your meal.',
+        ]);
+    
+        $step5 = $topic->steps()->create([
+            'position' => 5,
+            'title' => 'Asking for the bill',
+            'narrator' => 'You are ready to leave the restaurant.',
+            'objective' => 'Ask for the bill.',
+        ]);
+    
+        $step6 = $topic->steps()->create([
+            'position' => 6,
+            'title' => 'Paying',
+            'narrator' => 'The waiter brings the bill.',
+            'objective' => 'Pay the bill and say goodbye.',
+        ]);
+    
+        $step2->dependencies()->attach($step1);
+        $step3->dependencies()->attach($step1);
+    
+        $step4->dependencies()->attach([
+            $step2->id,
+            $step3->id,
+        ]);
+    
+        $step5->dependencies()->attach([
+            $step2->id,
+            $step3->id,
+        ]);
+    
+        $step6->dependencies()->attach($step5);
+    
+        $conversation->update([
+            'topic_id' => $topic->id,
+        ]);
+    
+        $conversation->steps()->createMany([
+            [
+                'topic_step_id' => $step1->id,
+                'status' => ConversationStepStatus::COMPLETED,
+            ],
+            [
+                'topic_step_id' => $step2->id,
+                'status' => ConversationStepStatus::COMPLETED,
+            ],
+            [
+                'topic_step_id' => $step3->id,
+                'status' => ConversationStepStatus::COMPLETED,
+            ],
+            [
+                'topic_step_id' => $step4->id,
+                'status' => ConversationStepStatus::ACTIVE,
+            ],
+            [
+                'topic_step_id' => $step5->id,
+                'status' => ConversationStepStatus::ACTIVE,
+            ],
+            [
+                'topic_step_id' => $step6->id,
+                'status' => ConversationStepStatus::LOCKED,
+            ],
+        ]);
+    
+        SpanishTutor::fake(function () {
+            return [
+                'reply' => 'Perfecto. Aquí tiene la cuenta.',
+                'corrected_sentence' => 'La comida estuvo muy buena. La cuenta, por favor.',
+                'mistakes' => [],
+                'completed_step_positions' => [4, 5],
+                'scenario_state_updates' => [],
+                'title' => 'En el restaurante',
+            ];
+        });
+    
+        $result = app(SpanishTutorService::class)->sendMessage(
+            $conversation,
+            'La comida estuvo muy buena. La cuenta, por favor.'
+        );
+    
+        $this->assertSame([4, 5], $result['completed_steps']);
+    
+        $this->assertDatabaseHas('conversation_steps', [
+            'conversation_id' => $conversation->id,
+            'topic_step_id' => $step4->id,
+            'status' => ConversationStepStatus::COMPLETED->value,
+        ]);
+    
+        $this->assertDatabaseHas('conversation_steps', [
+            'conversation_id' => $conversation->id,
+            'topic_step_id' => $step5->id,
+            'status' => ConversationStepStatus::COMPLETED->value,
+        ]);
+    
+        $this->assertDatabaseHas('conversation_steps', [
+            'conversation_id' => $conversation->id,
+            'topic_step_id' => $step6->id,
+            'status' => ConversationStepStatus::ACTIVE->value,
+        ]);
+    }
+
+    public function test_it_ignores_locked_steps_reported_as_completed_by_the_ai(): void
+    {
+        $user = User::factory()->create();
+    
+        $conversation = Conversation::factory()
+            ->for($user)
+            ->create();
+    
+        $topic = Topic::factory()->create([
+            'level' => 'A1',
+        ]);
+    
+        $step1 = $topic->steps()->create([
+            'position' => 1,
+            'title' => 'Arriving',
+            'narrator' => 'You arrive at a restaurant.',
+            'objective' => 'Ask for a table.',
+        ]);
+    
+        $step2 = $topic->steps()->create([
+            'position' => 2,
+            'title' => 'Ordering',
+            'narrator' => 'The waiter asks what you want.',
+            'objective' => 'Order your meal.',
+        ]);
+    
+        $step6 = $topic->steps()->create([
+            'position' => 6,
+            'title' => 'Paying',
+            'narrator' => 'The waiter brings the bill.',
+            'objective' => 'Pay the bill and say goodbye.',
+        ]);
+    
+        $step2->dependencies()->attach($step1);
+        $step6->dependencies()->attach($step2);
+    
+        $conversation->update([
+            'topic_id' => $topic->id,
+        ]);
+    
+        $conversation->steps()->createMany([
+            [
+                'topic_step_id' => $step1->id,
+                'status' => ConversationStepStatus::ACTIVE,
+            ],
+            [
+                'topic_step_id' => $step2->id,
+                'status' => ConversationStepStatus::LOCKED,
+            ],
+            [
+                'topic_step_id' => $step6->id,
+                'status' => ConversationStepStatus::LOCKED,
+            ],
+        ]);
+    
+        SpanishTutor::fake(function () {
+            return [
+                'reply' => '¡Perfecto!',
+                'corrected_sentence' => 'Quiero pagar, por favor.',
+                'mistakes' => [],
+                'completed_step_positions' => [6],
+                'scenario_state_updates' => [],
+                'title' => 'En el restaurante',
+            ];
+        });
+    
+        $result = app(SpanishTutorService::class)->sendMessage(
+            $conversation,
+            'Quiero pagar, por favor.'
+        );
+    
+        $this->assertSame([], $result['completed_steps']);
+    
+        $this->assertDatabaseHas('conversation_steps', [
+            'conversation_id' => $conversation->id,
+            'topic_step_id' => $step1->id,
+            'status' => ConversationStepStatus::ACTIVE->value,
+        ]);
+    
+        $this->assertDatabaseHas('conversation_steps', [
+            'conversation_id' => $conversation->id,
+            'topic_step_id' => $step2->id,
+            'status' => ConversationStepStatus::LOCKED->value,
+        ]);
+    
+        $this->assertDatabaseHas('conversation_steps', [
+            'conversation_id' => $conversation->id,
+            'topic_step_id' => $step6->id,
+            'status' => ConversationStepStatus::LOCKED->value,
+        ]);
     }
 }

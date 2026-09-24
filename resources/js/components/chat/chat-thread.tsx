@@ -45,12 +45,14 @@ export function ChatThread({
     waiting,
 }: ChatThreadProps) {
     const timeline: TimelineItem[] = [
-        ...scenarioSteps.map((scenarioStep) => ({
-            type: 'scenario' as const,
-            id: `scenario-${scenarioStep.id}`,
-            createdAt: scenarioStep.created_at,
-            step: scenarioStep,
-        })),
+        ...scenarioSteps
+            .filter((scenarioStep) => scenarioStep.status !== 'locked')
+            .map((scenarioStep) => ({
+                type: 'scenario' as const,
+                id: `scenario-${scenarioStep.id}`,
+                createdAt: scenarioStep.created_at,
+                step: scenarioStep,
+            })),
         ...messages.map((message) => ({
             type: 'message' as const,
             id: `message-${message.id}`,

@@ -23,6 +23,10 @@ class ConversationResource extends JsonResource
             'level' => $this->level,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+
+            'scenario_steps' => ConversationStepResource::collection(
+                $this->whenLoaded('steps')
+            ),
         ];
     }
 }

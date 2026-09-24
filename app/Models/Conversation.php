@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\Topic;
 use App\Models\TopicStep;
+use App\Enums\ConversationStepStatus;
 
 class Conversation extends Model
 {
@@ -20,7 +21,15 @@ class Conversation extends Model
         'title',
         'language',
         'level',
+        'scenario_state',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'scenario_state' => 'array',
+        ];
+    }
 
     public function user(): BelongsTo
     {
@@ -50,5 +59,33 @@ class Conversation extends Model
     public function currentStep(): BelongsTo
     {
         return $this->belongsTo(TopicStep::class, 'current_step_id');
+    }
+
+    public function updateStepProgress(): void
+    {
+        $steps = $this->steps()
+            ->with('topicStep.dependencies')
+            ->get();
+    
+        foreach ($steps as $conversationStep) {
+            if ($conversationStep->status !== ConversationStepStatus::LOCKED) {
+                continue;
+            }
+    
+            $dependencies = $conversationStep->topicStep->dependencies;
+    
+            if (
+                $dependencies->isNotEmpty()
+                && $dependencies->every(function ($dependency) use ($steps) {
+                    return $steps
+                        ->firstWhere('topic_step_id', $dependency->id)
+                        ?->status === ConversationStepStatus::COMPLETED;
+                })
+            ) {
+                $conversationStep->update([
+                    'status' => ConversationStepStatus::ACTIVE,
+                ]);
+            }
+        }
     }
 }

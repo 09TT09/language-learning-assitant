@@ -6,9 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Models\TopicCharacter;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
@@ -27,16 +25,31 @@ class TopicStep extends Model
         return $this->belongsTo(Topic::class);
     }
 
-    public function conversationSteps(): HasMany
-    {
-        return $this->hasMany(ConversationStep::class);
-    }
-
     public function characters(): BelongsToMany
     {
         return $this->belongsToMany(
             TopicCharacter::class,
             'topic_step_character'
+        );
+    }
+
+    public function dependencies(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            TopicStep::class,
+            'topic_step_dependencies',
+            'topic_step_id',
+            'depends_on_topic_step_id'
+        );
+    }
+
+    public function dependents(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            TopicStep::class,
+            'topic_step_dependencies',
+            'depends_on_topic_step_id',
+            'topic_step_id'
         );
     }
 
@@ -47,5 +60,10 @@ class TopicStep extends Model
             ->where('position', '>', $this->position)
             ->orderBy('position')
             ->first();
+    }
+
+    public function conversationSteps(): HasMany
+    {
+        return $this->hasMany(ConversationStep::class);
     }
 }

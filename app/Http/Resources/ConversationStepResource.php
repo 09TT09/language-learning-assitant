@@ -11,13 +11,19 @@ class ConversationStepResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'position' => $this->position,
-            'title' => $this->title,
-            'narrator' => $this->narrator,
-            'objective' => $this->objective,
-            'characters' => TopicCharacterResource::collection(
-                $this->whenLoaded('characters')
-            ),
+            'status' => $this->status->value,
+            'completed_at' => $this->completed_at,
+
+            'step' => [
+                'id' => $this->topicStep->id,
+                'position' => $this->topicStep->position,
+                'title' => $this->topicStep->title,
+                'narrator' => $this->topicStep->narrator,
+                'objective' => $this->topicStep->objective,
+                'characters' => TopicCharacterResource::collection(
+                    $this->topicStep->characters
+                ),
+            ],
         ];
     }
 }

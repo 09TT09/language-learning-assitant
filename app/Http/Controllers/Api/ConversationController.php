@@ -12,6 +12,7 @@ use App\Enums\ConversationLevel;
 use App\Http\Resources\ConversationResource;
 use App\Http\Resources\ConversationStepResource;
 use App\Models\ConversationStep;
+use App\Enums\ConversationStepStatus;
 
 class ConversationController extends Controller
 {
@@ -54,19 +55,25 @@ class ConversationController extends Controller
             $topic = Topic::findOrFail($validated['topic_id']);
         }
     
-        $firstStep = $topic?->steps()->first();
-
         $conversation = $request->user()->conversations()->create([
             'topic_id' => $topic?->id,
-            'current_step_id' => $firstStep?->id,
             'language' => $validated['language'] ?? 'es',
             'level' => $topic?->level ?? ($validated['level'] ?? ConversationLevel::A1),
         ]);
-        
-        if ($firstStep) {
-            $conversation->steps()->create([
-                'topic_step_id' => $firstStep->id,
-            ]);
+    
+        if ($topic) {
+            $topicSteps = $topic->steps()
+                ->orderBy('position')
+                ->get();
+    
+            foreach ($topicSteps as $step) {
+                $conversation->steps()->create([
+                    'topic_step_id' => $step->id,
+                    'status' => $step->dependencies()->exists()
+                        ? ConversationStepStatus::LOCKED
+                        : ConversationStepStatus::ACTIVE,
+                ]);
+            }
         }
     
         return response()->json($conversation, 201);
@@ -98,9 +105,11 @@ class ConversationController extends Controller
                 ->sortBy('created_at')
                 ->map(function (ConversationStep $conversationStep) {
                     $step = $conversationStep->topicStep;
-    
+        
                     return [
                         'id' => $conversationStep->id,
+                        'status' => $conversationStep->status->value,
+                        'completed_at' => $conversationStep->completed_at,
                         'created_at' => $conversationStep->created_at,
                         'step' => [
                             'id' => $step->id,
